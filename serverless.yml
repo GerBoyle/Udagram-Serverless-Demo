@@ -18,13 +18,52 @@ provider:
   runtime: nodejs12.x
   apiGateway:
     minimumCompressionSize: 1024 # Enable gzip compression for responses > 1 KB
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'eu-west-1'}
+
   environment:
-    AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+    GROUPS_TABLE: Groups-${self:provider.stage}
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Scan
+        - dynamodb:PutItem
+      Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.GROUPS_TABLE}
 
 functions:
-  hello:
-    handler: handler.hello
+  getGroups:
+    handler: src/lambda/http/getGroups.handler
     events:
       - http:
           method: get
-          path: hello
+          path: groups
+          cors: true 
+
+  CreateGroup:
+    handler: src/lambda/http/createGroup.handler
+    events:
+      - http:
+          method: post
+          path: groups
+          cors: true
+          reqValidatorName: RequestBodyValidator
+          documentation:
+            summary: Create a new group
+            description: Create a new group
+            requestModels:
+              'application/json': GroupRequest
+
+resources:
+  Resources:
+    GroupsDynamoDBTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:provider.environment.GROUPS_TABLE}
