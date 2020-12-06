@@ -32,6 +32,11 @@ provider:
       Action:
         - dynamodb:PutItem
         - dynamodb:Query
+      Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.IMAGES_TABLE}  
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+        - dynamodb:Query
       Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.IMAGES_TABLE}
     - Effect: Allow
       Action:
@@ -54,6 +59,9 @@ custom:
       - name: GroupRequest
         contentType: application/json
         schema: ${file(models/create-group-request.json)}
+      - name: ImageRequest
+        contentType: application/json
+        schema: ${file(models/create-image-request.json)}
 
 
 functions:
@@ -94,6 +102,20 @@ functions:
           method: get
           path: images/{imageId}
           cors: true
+
+  CreateImage:
+    handler: src/lambda/http/createImage.handler
+    events:
+      - http:
+          method: post
+          path: groups/{groupId}/images
+          cors: true
+          reqValidatorName: RequestBodyValidator
+          documentation:
+            summary: Create a new image
+            description: Create a new image
+            requestModels:
+              'application/json': ImageRequest
 
 #resources:
  # Resources:
@@ -175,14 +197,3 @@ resources:
         ValidateRequestBody: true
         ValidateRequestParameters: false
 
-    #GroupsDynamoDBTable:
-     # Type: AWS::DynamoDB::Table
-      #Properties:
-       # AttributeDefinitions:
-        #  - AttributeName: id
-         #   AttributeType: S
-       # KeySchema:
-        #  - AttributeName: id
-         #   KeyType: HASH
-        #BillingMode: PAY_PER_REQUEST
-        #TableName: ${self:provider.environment.GROUPS_TABLE}
