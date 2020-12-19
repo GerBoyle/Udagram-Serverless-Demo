@@ -38,11 +38,6 @@ provider:
       Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.IMAGES_TABLE}  
     - Effect: Allow
       Action:
-        - dynamodb:PutItem
-        - dynamodb:Query
-      Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.IMAGES_TABLE}
-    - Effect: Allow
-      Action:
         - dynamodb:Query
       Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.IMAGES_TABLE}/index/${self:provider.environment.IMAGE_ID_INDEX}
     - Effect: Allow
@@ -56,11 +51,17 @@ provider:
         - dynamodb:PutItem
         - dynamodb:DeleteItem
       Resource: arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CONNECTIONS_TABLE}
+    # - Effect: Allow
+    #   Action:
+    #     - s3:PutObject
+    #   Resource: "arn:aws:s3:::${self:provider.environment.THUMBNAILS_S3_BUCKET}/*"
 
 custom:
+  # start
   webpack:
     webpackConfig: ./webpack.config.js
     includeModules: true
+  # end
 
   topicName: imagesTopic-${self:provider.stage}
   documentation:
@@ -79,7 +80,8 @@ custom:
 
 
 functions:
-  getGroups:
+  GetGroups:
+  # getGroups:
     handler: src/lambda/http/getGroups.handler
     events:
       - http:
@@ -137,16 +139,18 @@ functions:
       API_ID:
         Ref: WebsocketsApi
     handler: src/lambda/s3/sendNotifications.handler
-    # events:
-    #   - sns:
-    #       arn:
-    #         Fn::Join:
-    #           - ':'
-    #           - - arn:aws:sns
-    #             - Ref: AWS::Region
-    #             - Ref: AWS::AccountId
-    #             - ${self:custom.topicName}
-    #       topicName: ${self:custom.topicName}
+    # start
+    events:
+      - sns:
+          arn:
+            Fn::Join:
+              - ':'
+              - - arn:aws:sns
+                - Ref: AWS::Region
+                - Ref: AWS::AccountId
+                - ${self:custom.topicName}
+          topicName: ${self:custom.topicName}
+    # end
 
   ConnectHandler:
     handler: src/lambda/websocket/connect.handler
@@ -161,8 +165,9 @@ functions:
           route: $disconnect
 
   SyncWithElasticsearch:
-    environment:
-      ES_ENDPOINT: !GetAtt ImagesSearch.DomainEndpoint
+    # environment:
+    #   ES_ENDPOINT: !GetAtt ImagesSearch.DomainEndpoint
+      # end
     handler: src/lambda/dynamoDb/elasticSearchSync.handler
     events:
       - stream:
@@ -223,16 +228,21 @@ resources:
 
     AttachmentsBucket:
       Type: AWS::S3::Bucket
-      # DependsOn: SNSTopicPolicy
+      DependsOn: SNSTopicPolicy
+      # end 1
       Properties:
         BucketName: ${self:provider.environment.IMAGES_S3_BUCKET}
         NotificationConfiguration:
-          # TopicConfigurations:
-          #   - Event: s3:ObjectCreated:Put
-          #     Topic: !Ref ImagesTopic
-          LambdaConfigurations:
-            - Event: s3:ObjectCreated:*
-              Function: !GetAtt SendUploadNotificationsLambdaFunction.Arn 
+          # start
+          TopicConfigurations:
+            - Event: s3:ObjectCreated:Put
+              Topic: !Ref ImagesTopic
+          # end 3
+          # start ?
+          # LambdaConfigurations:
+          #   - Event: s3:ObjectCreated:*
+          #     Function: !GetAtt SendUploadNotificationsLambdaFunction.Arn
+          # end ?
         CorsConfiguration:
           CorsRules:
             -
@@ -315,45 +325,31 @@ resources:
         TopicName: ${self:custom.topicName}
 
 
-    ImagesSearch:
-      Type: AWS::Elasticsearch::Domain
-      Properties:
-        ElasticsearchVersion: '6.3'
-        DomainName: images-search-${self:provider.stage}
-        ElasticsearchClusterConfig:
-          DedicatedMasterEnabled: false
-          InstanceCount: '1'
-          ZoneAwarenessEnabled: false
-          InstanceType: t2.small.elasticsearch
-        EBSOptions:
-          EBSEnabled: true
-          Iops: 0
-          VolumeSize: 10
-          VolumeType: 'gp2'
+#     ImagesSearch:
+#       Type: AWS::Elasticsearch::Domain
+#       Properties:
+#         ElasticsearchVersion: '6.3'
+#         DomainName: images-search-${self:provider.stage}
+#         ElasticsearchClusterConfig:
+#           DedicatedMasterEnabled: false
+#           InstanceCount: '1'
+#           ZoneAwarenessEnabled: false
+#           InstanceType: t2.small.elasticsearch
+#         EBSOptions:
+#           EBSEnabled: true
+#           Iops: 0
+#           VolumeSize: 10
+#           VolumeType: 'gp2'
 
-        # AccessPolicies:
-        #   Version: '2012-10-17'
-        #   Statement:
-        #     -
-        #       Effect: Allow
-        #       Principal:
-        #         AWS: '*'
-        #       Action: 'es:ESHttp*'
-        #       Resource: '*'
-
-
-        AccessPolicies:
-          Version: '2012-10-17'
-          Statement:
-            -
-              Effect: Allow
-              Action: 'es:ESHttp*'            
-              Principal:
-                AWS: '*'
-              Resource: '!Sub'
-              #Resource: '*'
-#'arn:aws:es:${self:provider.region}:${AWS::706805639342}:domain/images-search-${self:provider.stage}/*':
-'arn:aws:es:${self:provider.region}:${AWS::706805639342}:domain/images-search-${self:provider.stage}/*':
- 
-              #Resource: '*'
-#'arn:aws:es:${self:provider.region}:${AWS::AccountId}:domain/images-search-${self:provider.stage}/*':
+#         AccessPolicies:
+#           Version: '2012-10-17'
+#           Statement:
+#             -
+#               Effect: Allow
+#               Action: 'es:ESHttp*'      
+#               Principal:
+#                 AWS: '*'
+#               Resource: '!Sub'
+# 'arn:aws:es:${self:provider.region}:${AWS::AccountId}:domain/images-search-${self:provider.stage}/*':
+              # Action: 'es:*'
+              # Resource: '*' 
