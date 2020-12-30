@@ -22,7 +22,7 @@ provider:
     IMAGES_S3_BUCKET: boyle-serverless-udagram-images-${self:provider.stage}
     SIGNED_URL_EXPIRATION: 300
     CONNECTIONS_TABLE: Connections-${self:provider.stage}
-    #THUMBNAILS_S3_BUCKET: serverless-udagram-thumbnail-${self:provider.stage}
+    THUMBNAILS_S3_BUCKET: boyle-serverless-udagram-thumbnail-${self:provider.stage}
 
   iamRoleStatements:
     - Effect: Allow
@@ -51,17 +51,15 @@ provider:
         - dynamodb:PutItem
         - dynamodb:DeleteItem
       Resource: arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CONNECTIONS_TABLE}
-    # - Effect: Allow
-    #   Action:
-    #     - s3:PutObject
-    #   Resource: "arn:aws:s3:::${self:provider.environment.THUMBNAILS_S3_BUCKET}/*"
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+      Resource: "arn:aws:s3:::${self:provider.environment.THUMBNAILS_S3_BUCKET}/*"
 
 custom:
-  # start
   webpack:
     webpackConfig: ./webpack.config.js
     includeModules: true
-  # end
 
   topicName: imagesTopic-${self:provider.stage}
   documentation:
@@ -81,7 +79,6 @@ custom:
 
 functions:
   GetGroups:
-  # getGroups:
     handler: src/lambda/http/getGroups.handler
     events:
       - http:
@@ -139,7 +136,6 @@ functions:
       API_ID:
         Ref: WebsocketsApi
     handler: src/lambda/s3/sendNotifications.handler
-    # start
     events:
       - sns:
           arn:
@@ -150,21 +146,20 @@ functions:
                 - Ref: AWS::AccountId
                 - ${self:custom.topicName}
           topicName: ${self:custom.topicName}
-    # end
 
 
-  # ResizeImage:
-  #   handler: src/lambda/s3/resizeImage.handler
-  #   events:
-  #     - sns:
-  #         arn:
-  #           Fn::Join:
-  #             - ':'
-  #             - - arn:aws:sns
-  #               - Ref: AWS::Region
-  #               - Ref: AWS::AccountId
-  #               - ${self:custom.topicName}
-  #         topicName: ${self:custom.topicName}
+  ResizeImage:
+    handler: src/lambda/s3/resizeImage.handler
+    events:
+      - sns:
+          arn:
+            Fn::Join:
+              - ':'
+              - - arn:aws:sns
+                - Ref: AWS::Region
+                - Ref: AWS::AccountId
+                - ${self:custom.topicName}
+          topicName: ${self:custom.topicName}
 
   ConnectHandler:
     handler: src/lambda/websocket/connect.handler
@@ -178,15 +173,14 @@ functions:
       - websocket:
           route: $disconnect
 
-  SyncWithElasticsearch:
-    environment:
-      ES_ENDPOINT: !GetAtt ImagesSearch.DomainEndpoint
-      
-    handler: src/lambda/dynamoDb/elasticSearchSync.handler
-    events:
-      - stream:
-          type: dynamodb
-          arn: !GetAtt ImagesDynamoDBTable.StreamArn
+  # SyncWithElasticsearch:
+  #   environment:
+  #     ES_ENDPOINT: !GetAtt ImagesSearch.DomainEndpoint
+  #   handler: src/lambda/dynamoDb/elasticSearchSync.handler
+  #   events:
+  #     - stream:
+  #         type: dynamodb
+  #         arn: !GetAtt ImagesDynamoDBTable.StreamArn
 
 
 resources:
@@ -243,20 +237,12 @@ resources:
     AttachmentsBucket:
       Type: AWS::S3::Bucket
       DependsOn: SNSTopicPolicy
-      # end 1
       Properties:
         BucketName: ${self:provider.environment.IMAGES_S3_BUCKET}
         NotificationConfiguration:
-          # start
           TopicConfigurations:
             - Event: s3:ObjectCreated:Put
               Topic: !Ref ImagesTopic
-          # end 3
-          # start ?
-          # LambdaConfigurations:
-          #   - Event: s3:ObjectCreated:*
-          #     Function: !GetAtt SendUploadNotificationsLambdaFunction.Arn
-          # end ?
         CorsConfiguration:
           CorsRules:
             -
@@ -327,10 +313,10 @@ resources:
         Topics:
           - !Ref ImagesTopic
 
-    #ThumbnailsBucket:
-     # Type: AWS::S3::Bucket
-      #Properties:
-       # BucketName: ${self:provider.environment.THUMBNAILS_S3_BUCKET}
+    ThumbnailsBucket:
+     Type: AWS::S3::Bucket
+     Properties:
+       BucketName: ${self:provider.environment.THUMBNAILS_S3_BUCKET}
 
     ImagesTopic:
       Type: AWS::SNS::Topic
